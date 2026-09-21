@@ -11,6 +11,7 @@ export interface Message {
   from_address: string;
   subject: string;
   body: string;
+  snippet: string;
   received_at: string;
 }
 
@@ -61,12 +62,30 @@ export async function getSessionInboxes(db: D1Database, sessionId: string): Prom
 export async function getMessages(db: D1Database, inboxAddress: string): Promise<MessageSummary[]> {
   return db
     .prepare(
-      `SELECT id, inbox_address, from_address, subject, received_at, substr(body, 1, 150) AS snippet
+      `SELECT id, inbox_address, from_address, subject, snippet, received_at
        FROM messages
        WHERE inbox_address = ?
        ORDER BY received_at DESC, id DESC`
     )
     .bind(inboxAddress)
+    .all<MessageSummary>()
+    .then((r) => r.results);
+}
+
+export async function searchMessages(
+  db: D1Database,
+  inboxAddress: string,
+  q: string
+): Promise<MessageSummary[]> {
+  return db
+    .prepare(
+      `SELECT id, inbox_address, from_address, subject, snippet, received_at
+       FROM messages
+       WHERE inbox_address = ?
+         AND (subject LIKE '%' || ? || '%' OR from_address LIKE '%' || ? || '%' OR body LIKE '%' || ? || '%')
+       ORDER BY received_at DESC, id DESC`
+    )
+    .bind(inboxAddress, q, q, q)
     .all<MessageSummary>()
     .then((r) => r.results);
 }
@@ -88,10 +107,10 @@ export async function insertMessage(
 ): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO messages (id, inbox_address, from_address, subject, body)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO messages (id, inbox_address, from_address, subject, body, snippet)
+       VALUES (?, ?, ?, ?, ?, ?)`
     )
-    .bind(msg.id, msg.inbox_address, msg.from_address, msg.subject, msg.body)
+    .bind(msg.id, msg.inbox_address, msg.from_address, msg.subject, msg.body, msg.snippet || '')
     .run();
 }
 
@@ -127,16 +146,6 @@ export async function linkInboxToSession(
     .run();
 }
 
-export async function unlinkInboxFromSession(
-  db: D1Database,
-  sessionId: string,
-  address: string
-): Promise<void> {
-  await db
-    .prepare('DELETE FROM session_inboxes WHERE session_id = ? AND inbox_address = ?')
-    .bind(sessionId, address)
-    .run();
-}
 
 export async function isInboxInSession(
   db: D1Database,
@@ -179,6 +188,11 @@ export async function purgeOldMessages(db: D1Database): Promise<void> {
       `DELETE FROM inboxes
        WHERE address NOT IN (SELECT inbox_address FROM session_inboxes)
          AND address NOT IN (SELECT inbox_address FROM messages)`
+    ),
+    db.prepare(
+      `DELETE FROM sessions
+       WHERE id NOT IN (SELECT session_id FROM session_inboxes)
+         AND created_at < datetime('now', '-30 days')`
     ),
   ]);
 }

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS messages (
   from_address TEXT NOT NULL,
   subject TEXT DEFAULT '(no subject)',
   body TEXT DEFAULT '',
+  snippet TEXT DEFAULT '',
   received_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (inbox_address) REFERENCES inboxes(address) ON DELETE CASCADE
 );

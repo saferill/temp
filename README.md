@@ -150,15 +150,20 @@ crons = ["0 * * * *"]
 
 ### 5. Terapkan Skema Database (*Migration*)
 
-Jalankan skema SQL ke database D1 remote di Cloudflare:
+Jalankan skema SQL ke database D1 remote di Cloudflare (untuk instalasi baru):
 
 ```bash
 npx wrangler d1 execute tempik-db --remote --file=src/db/schema.sql
 ```
 
-Ini akan membuat 4 tabel utama dengan aturan integritas `ON DELETE CASCADE`:
+> **Untuk database yang sudah ada sebelumnya**: Jalankan file migrasi untuk menambahkan kolom `snippet` tanpa menghapus data yang ada:
+> ```bash
+> npx wrangler d1 execute tempik-db --remote --file=src/db/migrations/001_add_snippet.sql
+> ```
+
+Ini akan membuat tabel-tabel utama dengan aturan integritas `ON DELETE CASCADE`:
 - `inboxes`: Menyimpan alamat email aktif.
-- `messages`: Menyimpan email yang diterima.
+- `messages`: Menyimpan email yang diterima (termasuk kolom `snippet` untuk preview cepat).
 - `sessions`: Token sesi browser pengunjung.
 - `session_inboxes`: Relasi kepemilikan inbox terhadap sesi browser.
 

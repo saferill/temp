@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Context, Next } from 'hono';
 import type { D1Database } from '@cloudflare/workers-types';
 import {
   getInbox,
@@ -6,6 +7,7 @@ import {
   inboxExists,
   getSessionInboxes,
   getMessages,
+  searchMessages,
   getMessage,
   ensureSession,
   linkInboxToSession,
@@ -54,7 +56,10 @@ function defaultDomain(env: ApiEnv): string {
 const api = new Hono<{ Bindings: ApiEnv; Variables: ApiVariables }>();
 
 // Middleware: Require x-session-id for all /inboxes routes
-const requireSession = async (c: any, next: () => Promise<void>) => {
+const requireSession = async (
+  c: Context<{ Bindings: ApiEnv; Variables: ApiVariables }>,
+  next: Next
+) => {
   const sid = (c.req.header('x-session-id') || '').trim();
   if (!sid) {
     return c.json({ error: 'Missing x-session-id' }, 400);
@@ -188,7 +193,11 @@ api.get('/inboxes/:address/messages', async (c) => {
     return c.json({ error: 'Inbox not in this session' }, 403);
   }
 
-  const messages = await getMessages(c.env.DB, address);
+  const q = (c.req.query('q') || '').trim().slice(0, 100);
+  const messages = q
+    ? await searchMessages(c.env.DB, address, q)
+    : await getMessages(c.env.DB, address);
+
   return c.json(messages);
 });
 

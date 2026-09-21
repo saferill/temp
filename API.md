@@ -246,6 +246,12 @@ Fetches lightweight message summaries for a given inbox (without full body HTML 
 |---|---|
 | `address` | Full email address, URI-encoded. |
 
+**Query Parameters**
+
+| Param | Required | Description |
+|---|---|---|
+| `q` | No | Optional search keyword (max 100 characters). Searches in `subject`, `from_address`, and `body` using `LIKE '%q%'`. |
+
 **Response** `200 OK`
 
 ```json
@@ -254,8 +260,8 @@ Fetches lightweight message summaries for a given inbox (without full body HTML 
     "id": "msg_1782461413912_0956a83c",
     "inbox_address": "test123@example.com",
     "from_address": "someone@gmail.com",
-    "subject": "Hello",
-    "snippet": "This is a preview snippet of the email...",
+    "subject": "Kode Verifikasi Anda",
+    "snippet": "Kode verifikasi Anda adalah 582910. Jangan berikan kode ini kepada siapa pun...",
     "received_at": "2026-06-26 08:10:14"
   }
 ]
@@ -271,7 +277,12 @@ Fetches lightweight message summaries for a given inbox (without full body HTML 
 **Usage**
 
 ```bash
+# List all messages (summary with snippet)
 curl -s "https://YOUR_DOMAIN/api/inboxes/test123%40example.com/messages" \
+  -H "x-session-id: 550e8400-e29b-41d4-a716-446655440000"
+
+# Search messages in subject, sender, or body
+curl -s "https://YOUR_DOMAIN/api/inboxes/test123%40example.com/messages?q=verifikasi" \
   -H "x-session-id: 550e8400-e29b-41d4-a716-446655440000"
 ```
 

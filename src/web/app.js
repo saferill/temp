@@ -252,7 +252,9 @@ function renderSafeBody(container, rawBody) {
   container.innerHTML = '';
 
   const iframe = document.createElement('iframe');
-  iframe.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
+  // PENTING: JANGAN pernah menambahkan allow-scripts di sini.
+  // allow-same-origin hanya aman karena script di dalam iframe tetap diblokir.
+  iframe.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox allow-same-origin');
   iframe.style.width = '100%';
   iframe.style.border = 'none';
   iframe.style.background = 'transparent';
@@ -293,7 +295,7 @@ function renderSafeBody(container, rawBody) {
 
   iframe.srcdoc = srcdoc;
 
-  iframe.onload = () => {
+  const updateHeight = () => {
     try {
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (doc) {
@@ -307,8 +309,13 @@ function renderSafeBody(container, rawBody) {
         }
       }
     } catch (err) {
-      // Ignored if cross-origin sandbox restrictions prevent access
+      console.warn('Gagal mengukur tinggi iframe:', err);
     }
+  };
+
+  iframe.onload = () => {
+    updateHeight();
+    setTimeout(updateHeight, 300);
   };
 
   container.appendChild(iframe);
@@ -481,6 +488,10 @@ async function switchAddress(address) {
   if (address === currentAddress) return;
   currentAddress = address;
   localStorage.setItem(ACTIVE_ADDR_KEY, currentAddress);
+  searchQuery = '';
+  searchInput.value = '';
+  searchClearBtn.classList.add('hidden');
+  clearTimeout(searchDebounceTimer);
   renderAddressList();
   updateActiveAddressChip();
   closeMobileSidebar();
@@ -499,7 +510,10 @@ async function loadMessages() {
   setSyncingState(true);
 
   try {
-    messages = await fetchJson(`/api/inboxes/${encodeURIComponent(currentAddress)}/messages`);
+    const url = searchQuery
+      ? `/api/inboxes/${encodeURIComponent(currentAddress)}/messages?q=${encodeURIComponent(searchQuery)}`
+      : `/api/inboxes/${encodeURIComponent(currentAddress)}/messages`;
+    messages = await fetchJson(url);
     renderMessages();
   } catch (err) {
     console.error('Failed to load messages:', err);
@@ -522,7 +536,10 @@ async function silentRefresh() {
   setSyncingState(true);
 
   try {
-    const latestMessages = await fetchJson(`/api/inboxes/${encodeURIComponent(currentAddress)}/messages`);
+    const url = searchQuery
+      ? `/api/inboxes/${encodeURIComponent(currentAddress)}/messages?q=${encodeURIComponent(searchQuery)}`
+      : `/api/inboxes/${encodeURIComponent(currentAddress)}/messages`;
+    const latestMessages = await fetchJson(url);
     
     // Check if message ID list is identical (avoid unnecessary DOM rebuilds)
     const oldIds = messages.map((m) => m.id);
@@ -579,16 +596,8 @@ function renderMessages() {
     currentViewTitle.textContent = 'Kotak Masuk';
   }
 
-  // Filter by search query
+  // Update view title if searching (search filtering is performed server-side)
   if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    list = list.filter(
-      (m) =>
-        m.subject.toLowerCase().includes(q) ||
-        m.from_address.toLowerCase().includes(q) ||
-        (m.snippet && m.snippet.toLowerCase().includes(q)) ||
-        (m.body && m.body.toLowerCase().includes(q))
-    );
     currentViewTitle.textContent = `Pencarian: "${searchQuery}"`;
   }
 
@@ -906,7 +915,9 @@ refreshBtn.addEventListener('click', async () => {
   showToast('🔄 Pesan diperbarui');
 });
 
-// Search Input Handler
+let searchDebounceTimer = null;
+
+// Search Input Handler (Server-side search with 400ms debounce)
 searchInput.addEventListener('input', (e) => {
   searchQuery = e.target.value.trim();
   if (searchQuery) {
@@ -914,14 +925,21 @@ searchInput.addEventListener('input', (e) => {
   } else {
     searchClearBtn.classList.add('hidden');
   }
-  showListView();
+
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(async () => {
+    showListView();
+    await loadMessages();
+  }, 400);
 });
 
-searchClearBtn.addEventListener('click', () => {
+searchClearBtn.addEventListener('click', async () => {
   searchInput.value = '';
   searchQuery = '';
   searchClearBtn.classList.add('hidden');
+  clearTimeout(searchDebounceTimer);
   showListView();
+  await loadMessages();
 });
 
 // Compose Modal (Create New Address)

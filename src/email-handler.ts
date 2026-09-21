@@ -45,6 +45,13 @@ export async function handleEmail(message: ForwardableEmailMessage, env: EmailHa
       body = body.slice(0, 100_000) + '\n\n[...pesan dipotong karena terlalu panjang]';
     }
 
+    // Compute snippet (plain-text preview up to 200 characters)
+    let rawSnippetText = parsed.text?.trim() || '';
+    if (!rawSnippetText && parsed.html) {
+      rawSnippetText = parsed.html.replace(/<[^>]*>/g, ' ');
+    }
+    const snippet = rawSnippetText.replace(/\s+/g, ' ').trim().slice(0, 200);
+
     // Store the message
     const msgId = `msg_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     await insertMessage(db, {
@@ -53,6 +60,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: EmailHa
       from_address: from,
       subject,
       body,
+      snippet,
     });
 
     console.log(`[email] Stored message ${msgId} for ${to}`);
