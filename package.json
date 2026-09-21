@@ -1,6 +1,13 @@
 {
   "name": "tempik",
   "version": "1.0.0",
+  "description": "Modern Disposable Temp Mail on Cloudflare Workers",
+  "author": "saferill",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saferill/temp.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",

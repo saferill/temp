@@ -2,7 +2,7 @@
 
 Tempik exposes a REST API for session management, inbox operations, and message retrieval. All endpoints live under `/api/`.
 
-**Base URL:** `https://YOUR_DOMAIN/api/`
+**Base URL:** `https://tempik.cinewatch.web.id/api/` (atau domain deployment Anda)
 
 ---
 
@@ -319,7 +319,7 @@ curl -s -X DELETE "https://YOUR_DOMAIN/api/inboxes/test123%40example.com/message
 ## Full flow example
 
 ```bash
-DOMAIN="tempik.YOURDOMAIN.com"
+DOMAIN="tempik.cinewatch.web.id"
 
 # 1. Get session
 SESSION=$(curl -s https://$DOMAIN/api/session | jq -r '.sessionId')

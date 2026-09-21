@@ -1,128 +1,105 @@
-# Tempik — Disposable Temp Mail on Cloudflare Workers
+# ✉️ Tempik Mail — Modern Disposable Temp Mail
 
-Tempik is a **self-hosted disposable email** service that runs entirely on **Cloudflare Workers** — no VPS required. It uses Cloudflare Email Workers to receive inbound email, D1 for storage, and serves a clean web UI from the edge.
+Tempik Mail adalah layanan **email sementara (*disposable temporary email*) modern** berkinerja tinggi yang berjalan sepenuhnya di atas ekosistem **Cloudflare Workers** dan **Cloudflare D1**. 
 
-> **Repo**: [github.com/hirotomasato/tempik](https://github.com/hirotomasato/tempik)
+Tidak memerlukan VPS, tanpa server Linux, tanpa konfigurasi Docker, dan tanpa pusing merawat Postfix/SMTP server sendiri — 100% *serverless* dan dapat berjalan gratis di *Free Tier* Cloudflare.
 
----
-
-## How it works
-
-```
-Sender → Cloudflare MX → Email Worker (email handler)
-                                  │
-                                  ▼
-                          D1 Database (SQLite)
-                                  │
-                                  ▼
-                   Worker HTTP handler → Web UI + API
-```
-
-- **No VPS** — everything runs on Cloudflare's edge
-- **No Postfix** — Cloudflare Email Workers handle SMTP ingestion natively
-- **No Docker** — just `wrangler deploy`
-- **Zero cost** — fits within Cloudflare's free tier
+> 🌐 **Live Demo / Instance**: [tempik.cinewatch.web.id](http://tempik.cinewatch.web.id)  
+> 📦 **GitHub Repository**: [github.com/saferill/temp](https://github.com/saferill/temp.git)
 
 ---
 
-## Prerequisites
+## ✨ Fitur Unggulan
 
-Before you start, you need:
+- 🎨 **Antarmuka Google Gmail Material 3**: Tampilan bersih, intuitif, dan responsif (desktop, tablet, dan mobile) lengkap dengan bilah pencarian, pill *Compose* melayang, panel pembaca email, dan drawer navigasi.
+- ⚡ **Detektor OTP Otomatis**: Secara otomatis mendeteksi kode verifikasi 4–8 digit serta format kode Google (`G-XXXXXX`) dan menampilkan banner salin satu klik (*one-click copy*).
+- 🔄 **Sinkronisasi Real-Time & Sound Chime**: Polling latar belakang otomatis setiap 6 detik disertai notifikasi suara merdu (*web audio chime*) saat email baru masuk.
+- 🌓 **Mode Gelap & Terang (Dark/Light)**: Dukungan tema gelap dan terang yang nyaman di mata dengan penyimpanan preferensi otomatis.
+- 🔒 **Privasi Berbasis Sesi Anonim**: Sesi pengguna terisolasi di browser via `localStorage` tanpa perlu mendaftar akun atau login.
+- 🗑️ **Pembersihan Permanen (*Cascade Delete*)**: Hapus pesan individual atau hapus seluruh alamat inbox beserta riwayat emailnya secara permanen dari database.
+- 🛡️ **Sanitasi XSS & Rich HTML**: Menampilkan email HTML dengan aman dan otomatis mengubah tautan/URL menjadi tautan aktif yang dapat diklik.
 
-| Requirement | Details |
+---
+
+## 🏗️ Cara Kerja Sistem
+
+```text
+Pengirim Email (Google, dsb.)
+            │
+            ▼
+Cloudflare MX Records (route1, route2, route3.mx.cloudflare.net)
+            │
+            ▼
+Cloudflare Email Routing (Catch-all Rule)
+            │
+            ▼
+Worker email() Handler (PostalMime Parser)
+            │
+            ▼
+Cloudflare D1 Database (SQLite di Edge)
+            ▲
+            │
+Worker fetch() Handler (Hono REST API)
+            ▲
+            │
+Web Frontend (Gmail Material 3 UI / Static Assets)
+```
+
+1. **Inbound Email**: Ketika email dikirim ke alamat apa pun `@cinewatch.web.id`, Cloudflare Email Routing meneruskannya langsung ke fungsi `email()` pada Worker `tempik`.
+2. **Parsing & Storage**: Worker membaca raw stream email via native `ArrayBuffer`, mem-parsing subjek, pengirim, dan isi (HTML/Text) menggunakan `PostalMime`, lalu menyimpannya ke database Cloudflare D1.
+3. **Web Client**: Frontend memuat email secara instan melalui Hono REST API (`/api/inboxes/:address/messages`) dan memperbarui tampilan secara dinamis tanpa perlu me-refresh halaman browser.
+
+---
+
+## 📋 Prasyarat
+
+Sebelum memulai pemasangan, pastikan Anda memiliki:
+
+| Kebutuhan | Keterangan |
 |---|---|
-| **Cloudflare account** | [Sign up here](https://dash.cloudflare.com/sign-up) (free) |
-| **A domain** | Must be added to Cloudflare (nameservers pointed to Cloudflare) |
-| **Node.js** | v18 or later ([download](https://nodejs.org/)) |
-| **npm** | Comes with Node.js |
+| **Akun Cloudflare** | [Daftar gratis di Cloudflare](https://dash.cloudflare.com/sign-up) |
+| **Domain Aktif** | Domain yang nameserver-nya sudah diarahkan ke Cloudflare (contoh: `cinewatch.web.id`) |
+| **Node.js** | Versi 18 atau lebih baru ([Unduh Node.js](https://nodejs.org/)) |
+| **npm** | Bawaan instalasi Node.js |
+| **Git** | Untuk clone repository |
 
 ---
 
-## Step 1 — Clone & install dependencies
+## 🚀 Panduan Instalasi Langkah Demi Langkah
+
+### 1. Clone Repository & Install Dependensi
 
 ```bash
-git clone https://github.com/hirotomasato/tempik.git
-cd tempik
+git clone https://github.com/saferill/temp.git
+cd temp
 npm install
 ```
 
----
-
-## Step 2 — Login to Cloudflare
+### 2. Login ke Cloudflare via Wrangler
 
 ```bash
 npx wrangler login
 ```
 
-This opens a browser window. Log in with your Cloudflare account and approve the OAuth scopes.
+Browser akan terbuka otomatis. Masuk ke akun Cloudflare Anda dan klik **Allow** untuk memberikan izin akses CLI.
 
-> **What scopes are needed?**
-> Wrangler will request permissions for Workers, D1, Email Routing, Pages, and more. You must approve all of them so the CLI can create the database and deploy the worker.
-
-Verify you're logged in:
+Untuk memastikan login berhasil:
 
 ```bash
 npx wrangler whoami
 ```
 
----
+### 3. Buat Database Cloudflare D1
 
-## Step 3 — Configure wrangler.toml
-
-Open `wrangler.toml` and replace the placeholder values with your own:
-
-```toml
-name = "tempik"
-main = "src/index.ts"
-compatibility_date = "2025-06-01"
-
-# Set to false when using your own domain (skip workers.dev)
-workers_dev = false
-
-# D1 Database — leave database_id empty for now, we'll fill it in Step 4
-[[d1_databases]]
-binding = "DB"
-database_name = "tempik-db"
-database_id = ""
-
-# Email Worker
-[email]
-action = "process"
-
-# Custom domain — CHANGE THIS to your own domain
-[[routes]]
-pattern = "tempik.YOURDOMAIN.com"
-custom_domain = true
-
-# Environment — CHANGE THESE
-[vars]
-APP_NAME = "Tempik"
-MAIL_DOMAIN = "YOURDOMAIN.com"
-WEB_HOST = "tempik.YOURDOMAIN.com"
-
-# Static assets (don't change)
-[assets]
-directory = "./src/web"
-
-[observability]
-enabled = true
-```
-
-**All three `vars` + the routes `pattern` must be updated:**
-- `YOURDOMAIN.com` → your actual domain (e.g. `example.com`)
-- `tempik.YOURDOMAIN.com` → the subdomain for the web UI
-
----
-
-## Step 4 — Create the D1 database
+Jalankan perintah berikut untuk membuat database D1 di Cloudflare:
 
 ```bash
 npx wrangler d1 create tempik-db
 ```
 
-You'll see output like:
+Output akan menampilkan ID database Anda:
 
-```
+```text
 ✅ Successfully created DB 'tempik-db'
 
 [[d1_databases]]
@@ -131,204 +108,140 @@ database_name = "tempik-db"
 database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
-Copy the `database_id` into your `wrangler.toml`.
+### 4. Sesuaikan `wrangler.toml`
 
----
+Buka file `wrangler.toml` dan pastikan konfigurasi sesuai dengan domain dan ID database Anda:
 
-## Step 5 — Apply the database schema
+```toml
+name = "tempik"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
 
-Push the schema to your **remote** D1 database on Cloudflare:
+workers_dev = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tempik-db"
+database_id = "MASUKKAN_DATABASE_ID_ANDA_DI_SINI"
+
+[[routes]]
+pattern = "tempik.cinewatch.web.id"
+custom_domain = true
+
+[vars]
+APP_NAME = "Tempik Mail"
+MAIL_DOMAIN = "cinewatch.web.id"
+WEB_HOST = "tempik.cinewatch.web.id"
+
+[assets]
+directory = "./src/web"
+
+[observability]
+enabled = true
+```
+
+> **Catatan**: Ganti `cinewatch.web.id` dengan nama domain Anda sendiri jika menggunakan domain lain.
+
+### 5. Terapkan Skema Database (*Migration*)
+
+Jalankan skema SQL ke database D1 remote di Cloudflare:
 
 ```bash
 npx wrangler d1 execute tempik-db --remote --file=src/db/schema.sql
 ```
 
-This creates four tables:
-- `inboxes` — email addresses
-- `messages` — received emails
-- `sessions` — browser session tokens
-- `session_inboxes` — which inboxes belong to which session
+Ini akan membuat 4 tabel utama dengan aturan integritas `ON DELETE CASCADE`:
+- `inboxes`: Menyimpan alamat email aktif.
+- `messages`: Menyimpan email yang diterima.
+- `sessions`: Token sesi browser pengunjung.
+- `session_inboxes`: Relasi kepemilikan inbox terhadap sesi browser.
 
-> **Note:** The `--remote` flag is important — without it, the schema only applies locally. You want it on Cloudflare's servers.
+### 6. Konfigurasi Cloudflare Email Routing
 
----
+1. Buka [Cloudflare Dashboard](https://dash.cloudflare.com/) → Pilih domain Anda (`cinewatch.web.id`).
+2. Masuk ke menu **Email** → **Email Routing**.
+3. Jika baru pertama kali, aktifkan Email Routing dan izinkan Cloudflare menambahkan catatan DNS secara otomatis:
+   - **MX Records**: `route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, `route3.mx.cloudflare.net`
+   - **SPF TXT**: `v=spf1 include:_spf.mx.cloudflare.net ~all`
+   - **DKIM TXT**: `cf2024-1._domainkey`
+4. Di tab **Routing Rules**:
+   - Cari bagian **Catch-all rule** → Klik **Edit**.
+   - Atur **Action**: `Send to a Worker`.
+   - Pilih Worker: `tempik`.
+   - Pastikan status Catch-all rule berstatus **Enabled** / Aktif.
 
-## Step 6 — Deploy the Worker
+### 7. Deploy ke Cloudflare Workers
+
+Jalankan perintah deploy:
 
 ```bash
 npx wrangler deploy
 ```
 
-This does three things:
-1. Uploads the TypeScript Worker code
-2. Uploads the static frontend files (HTML/CSS/JS) to Cloudflare Assets (edge CDN)
-3. Registers the custom domain route
-
-After a successful deploy, you'll see:
-
-```
-Deployed tempik triggers
-  tempik.YOURDOMAIN.com (custom domain)
-```
+Setelah selesai, web email sementara Anda sudah aktif dan dapat diakses di domain kustom Anda (misal: `https://tempik.cinewatch.web.id`)!
 
 ---
 
-## Step 7 — Setup DNS on Cloudflare
+## 🛠️ Perintah Berguna (*Commands Cheat Sheet*)
 
-### 7a. Web UI (automatic)
-
-Cloudflare automatically creates the DNS record for your Worker's custom domain. If it doesn't:
-
-- Go to **Cloudflare Dashboard → Workers & Pages → tempik → Settings → Domains**
-- The custom domain `tempik.YOURDOMAIN.com` should already be listed
-
-### 7b. MX Records (automatic with Email Routing)
-
-Email Routing should already be enabled on your domain. Verify:
-
-```bash
-npx wrangler email routing settings YOURDOMAIN.com
-```
-
-It should show `Enabled: true`. The catch-all rule is also automatically set up — every `*@YOURDOMAIN.com` is routed to the `tempik` Worker:
-
-```bash
-npx wrangler email routing rules list YOURDOMAIN.com
-```
-
-Expected output:
-```
-Catch-all rule: enabled, action: worker:tempik
-```
-
-### 7c. SPF Record (optional but recommended)
-
-If you don't already have an SPF record, add one so emails don't get flagged as spam:
-
-| Type | Name | Content |
-|---|---|---|
-| TXT | `@` | `v=spf1 include:_spf.mx.cloudflare.net ~all` |
-
----
-
-## Step 8 — Test it
-
-1. Open `https://tempik.YOURDOMAIN.com` in your browser
-2. Click **New** → **Random** to create a disposable address
-3. Send an email from Gmail/any provider to that address
-4. Click **Refresh** — the email appears in your inbox
-
----
-
-## Commands cheat sheet
-
-| Command | What it does |
+| Perintah | Fungsi |
 |---|---|
-| `npm run deploy` | Deploy Worker + static assets |
-| `npm run db:migrate` | Apply schema to production D1 |
-| `npm run db:local` | Apply schema to local D1 (for dev) |
-| `npx wrangler dev` | Run Worker locally |
-| `npx wrangler tail` | Stream live logs from production |
-| `npx wrangler d1 execute tempik-db --remote --command="SELECT * FROM messages LIMIT 10"` | Query the database |
-
-### Check if emails are being received
-
-```bash
-npx wrangler d1 execute tempik-db --remote --command="SELECT * FROM messages ORDER BY received_at DESC LIMIT 5;"
-```
-
-### Watch live logs
-
-```bash
-npx wrangler tail --format pretty
-```
-
-Then send a test email — you'll see the Worker processing it in real time.
+| `npm run deploy` | Melakukan build dan deploy Worker + aset Web UI ke Cloudflare |
+| `npm run db:migrate` | Menerapkan skema SQL ke database D1 di Cloudflare |
+| `npm run db:local` | Menerapkan skema SQL ke database lokal untuk uji coba dev |
+| `npx wrangler dev` | Menjalankan server pengembangan lokal |
+| `npx wrangler tail tempik` | Melihat log aktivitas Worker secara *real-time* |
+| `npx wrangler d1 execute tempik-db --remote --command="SELECT * FROM messages;"` | Melihat isi tabel pesan langsung dari terminal |
 
 ---
 
-## Project structure
+## 📁 Struktur Direktori Proyek
 
-```
-tempik/
-├── wrangler.toml              # Worker config, D1 binding, routes, env vars
-├── package.json
-├── tsconfig.json
-├── .gitignore
+```text
+temp/
+├── wrangler.toml              # Konfigurasi Cloudflare Worker, D1 binding, & routes
+├── package.json               # Dependensi proyek & npm scripts
+├── tsconfig.json              # Konfigurasi TypeScript
+├── API.md                     # Dokumentasi lengkap REST API
+├── LICENSE                    # Lisensi MIT
+├── README.md                  # Dokumentasi panduan proyek
 └── src/
-    ├── index.ts               # Entry point: fetch() + email() handlers
-    ├── email-handler.ts       # Parses inbound email via PostalMime → D1
+    ├── index.ts               # Entry point Worker: fetch() untuk API & email() untuk inbound mail
+    ├── email-handler.ts       # Logika penerimaan email & parsing PostalMime
     ├── api/
-    │   └── routes.ts          # Hono router: /api/config, /api/session, /api/inboxes, /api/messages
+    │   └── routes.ts          # REST API router (Hono): /config, /session, /inboxes, /messages
     ├── db/
-    │   ├── schema.sql         # D1 tables (inboxes, messages, sessions, session_inboxes)
-    │   └── queries.ts         # Typed query functions
+    │   ├── schema.sql         # Skema tabel SQLite D1 (inboxes, messages, sessions, cascade)
+    │   └── queries.ts         # Query database D1 terstruktur & bertipe data
     ├── utils/
-    │   └── random-address.ts  # Human-like random email generator
+    │   └── random-address.ts  # Generator nama email acak Indonesia yang ramah & natural
     └── web/
-        ├── index.html         # Frontend UI
-        ├── app.js             # Frontend logic (vanilla JS)
-        └── styles.css         # Dark theme styles
+        ├── index.html         # Tampilan Web UI (Material 3 Gmail layout)
+        ├── app.js             # Logika antarmuka klien (deteksi OTP, tema, polling)
+        └── styles.css         # Desain tema Gmail Material 3 (Dark & Light mode)
 ```
 
 ---
 
-## Tech stack
+## ❓ Tanya Jawab & Solusi Masalah (*Troubleshooting*)
 
-| Layer | Tech |
-|---|---|
-| **Runtime** | Cloudflare Workers |
-| **Router** | Hono |
-| **Email parsing** | PostalMime |
-| **Database** | Cloudflare D1 (SQLite) |
-| **Static hosting** | Cloudflare Workers Assets (edge CDN) |
-| **Language** | TypeScript |
-| **CLI** | Wrangler v4 |
+### 1. Kode OTP / Email Belum Masuk?
+- **Penyebab**: Jika Anda baru saja mengaktifkan Email Routing di Cloudflare, catatan DNS MX memerlukan beberapa menit untuk terpropagasi secara global. Layanan pengirim email (seperti Google, Facebook, dsb.) mungkin telah mencoba mengirim sebelum DNS selesai diperbarui dan menahan email sementara waktu.
+- **Solusi**: Pada halaman verifikasi (misalnya pendaftaran Google), klik tombol **Back** (Kembali) lalu klik **Next** (Berikutnya) kembali untuk meminta pengiriman ulang (*resend*). Pastikan juga Catch-all rule di Email Routing sudah mengarah ke Worker `tempik`.
 
----
-
-## Troubleshooting
-
-### "This site can't be reached / DNS_PROBE_FINISHED_NXDOMAIN"
-
-Your domain's nameservers are not pointed to Cloudflare, or the DNS record hasn't propagated yet. Check:
+### 2. Memeriksa Alur Email yang Masuk
+Anda bisa memantau alur masuk email secara langsung dengan menjalankan:
 
 ```bash
-dig +short YOURDOMAIN.com NS
+npx wrangler tail tempik
 ```
 
-Should show `*.ns.cloudflare.com`. Propagation can take up to 24 hours after changing nameservers.
-
-### Emails not appearing in the web UI
-
-1. The email was received but the inbox hasn't been linked to your browser session. Click **New** → type the exact local-part → click **Create** to claim it.
-2. Check the database:
-   ```bash
-   npx wrangler d1 execute tempik-db --remote --command="SELECT * FROM messages ORDER BY received_at DESC LIMIT 5;"
-   ```
-3. Check live logs:
-   ```bash
-   npx wrangler tail --format pretty
-   ```
-
-### "Unexpected fields found in top-level field: email"
-
-This is a known wrangler warning — it's cosmetic. The `[email]` config works fine. Cloudflare is still stabilizing the Email Worker integration.
-
-### Wrangler version mismatch
-
-This project uses **Wrangler v4**. If you're on v3:
-
-```bash
-npm install --save-dev wrangler@4
-```
+Lalu kirim email uji coba dari akun Gmail atau Yahoo Anda ke alamat email yang dibuat. Log Worker akan mencetak status penerimaan email secara detail.
 
 ---
 
-## License
+## 📄 Lisensi
 
-MIT
+Proyek ini dirilis di bawah lisensi [MIT](LICENSE).
 
----
-
-Developer by [masantoid](https://github.com/hirotomasato)
+Dibuat dan dikembangkan oleh [saferill (Payy)](https://github.com/saferill).
