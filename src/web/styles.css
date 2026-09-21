@@ -1223,6 +1223,78 @@ body.theme-dark .otp-banner {
   box-shadow: 0 2px 6px rgba(11,87,208,0.25);
 }
 
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+}
+
+#notificationToggleBtn.active {
+  color: var(--primary);
+  background-color: var(--primary-container);
+}
+
+.sync-card {
+  background-color: var(--bg-surface-hover);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.sync-card-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sync-key-display {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12.5px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--primary);
+  word-break: break-all;
+  user-select: all;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.sync-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sync-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 18px 0;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+
+.sync-divider::before,
+.sync-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sync-divider span {
+  padding: 0 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
 /* ==========================================================================
    Toast Notifications (Snackbar)
    ========================================================================== */

@@ -49,6 +49,25 @@
 
       <!-- Right Header Actions -->
       <div class="header-right">
+        <!-- Desktop Notification Toggle Button -->
+        <button id="notificationToggleBtn" class="icon-btn" title="Notifikasi Desktop" aria-label="Notifikasi Desktop">
+          <svg id="notificationIconOff" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <svg id="notificationIconOn" class="hidden" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+          </svg>
+        </button>
+
+        <!-- Session Recovery / Sync Button -->
+        <button id="sessionSyncBtn" class="icon-btn" title="Kunci Pemulihan & Sinkron Sesi" aria-label="Kunci Pemulihan & Sinkron Sesi">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-1.5 1.5L10 13l-4 4 2 2 2-2 4-4 7.5-7.5z"></path>
+            <circle cx="7.5" cy="16.5" r="4.5"></circle>
+          </svg>
+        </button>
+
         <!-- Live Sync Status -->
         <div class="sync-status" id="syncStatus" title="Status Sinkronisasi Otomatis">
           <span class="sync-pulse"></span>
@@ -255,6 +274,54 @@
           </button>
           <button id="createCustomAddressBtn" class="btn btn-primary">
             ✦ Buat Alamat Kustom
+          </button>
+        </div>
+      </div>
+    <!-- Modal: Session Recovery & Sync -->
+    <div class="modal-overlay hidden" id="syncModalOverlay">
+      <div class="modal-box" id="syncModal">
+        <div class="modal-header">
+          <div class="modal-title">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 1.5L10 13l-4 4 2 2 2-2 4-4 7.5-7.5z"></path><circle cx="7.5" cy="16.5" r="4.5"></circle></svg>
+            <span>Kunci Sesi & Sinkronisasi</span>
+          </div>
+          <button id="closeSyncBtn" class="icon-btn modal-close" title="Tutup">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="modal-desc">Gunakan kunci sesi atau tautan sinkronisasi ini untuk memulihkan seluruh alamat email Anda di perangkat lain atau tab baru.</p>
+
+          <div class="sync-card">
+            <div class="sync-card-label">Kunci Sesi Aktif Anda:</div>
+            <div class="sync-key-display" id="currentSessionKeyText">Memuat...</div>
+            <div class="sync-action-buttons">
+              <button id="copySyncLinkBtn" class="btn btn-secondary btn-sm">
+                🔗 Salin Link Sinkron
+              </button>
+              <button id="copySessionKeyBtn" class="btn btn-secondary btn-sm">
+                📋 Salin Kunci Sesi
+              </button>
+            </div>
+            <small class="form-hint" style="margin-top:8px;">Buka link tersebut di perangkat lain untuk langsung menyinkronkan seluruh email Anda.</small>
+          </div>
+
+          <div class="sync-divider">
+            <span>atau pulihkan sesi lain</span>
+          </div>
+
+          <div class="form-group">
+            <label for="restoreSessionKeyInput">Masukkan Kunci Sesi Lama (UUID):</label>
+            <input type="text" id="restoreSessionKeyInput" placeholder="Contoh: 5c4d7a1f-1372-4338-91ab-..." />
+            <small class="form-hint">Memasukkan kunci sesi lama akan mengganti sesi aktif di browser ini.</small>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="cancelSyncBtn" class="btn btn-secondary">
+            Batal
+          </button>
+          <button id="applyRestoreSessionBtn" class="btn btn-primary">
+            ✦ Pulihkan Sesi Ini
           </button>
         </div>
       </div>

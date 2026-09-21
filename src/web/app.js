@@ -66,6 +66,22 @@ const modalDomainSelect = document.getElementById('modalDomainSelect');
 const createRandomAddressBtn = document.getElementById('createRandomAddressBtn');
 const createCustomAddressBtn = document.getElementById('createCustomAddressBtn');
 
+// Notification and Sync Header Elements
+const notificationToggleBtn = document.getElementById('notificationToggleBtn');
+const notificationIconOff = document.getElementById('notificationIconOff');
+const notificationIconOn = document.getElementById('notificationIconOn');
+const sessionSyncBtn = document.getElementById('sessionSyncBtn');
+
+// Sync Modal Elements
+const syncModalOverlay = document.getElementById('syncModalOverlay');
+const closeSyncBtn = document.getElementById('closeSyncBtn');
+const cancelSyncBtn = document.getElementById('cancelSyncBtn');
+const currentSessionKeyText = document.getElementById('currentSessionKeyText');
+const copySyncLinkBtn = document.getElementById('copySyncLinkBtn');
+const copySessionKeyBtn = document.getElementById('copySessionKeyBtn');
+const restoreSessionKeyInput = document.getElementById('restoreSessionKeyInput');
+const applyRestoreSessionBtn = document.getElementById('applyRestoreSessionBtn');
+
 const toastContainer = document.getElementById('toastContainer');
 
 // ---- State & Storage Keys ----
@@ -81,6 +97,16 @@ let appConfig = {
   mailDomains: ['example.com'],
   webHost: 'tempik.example.com',
 };
+
+// URL Query Parameter Check for instant Session Recovery / Sync (?session=UUID)
+const urlParams = new URLSearchParams(window.location.search);
+const paramSession = (urlParams.get('session') || '').trim();
+let restoredFromUrl = false;
+if (paramSession && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paramSession)) {
+  localStorage.setItem(SESSION_KEY, paramSession);
+  restoredFromUrl = true;
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
 
 let sessionId = localStorage.getItem(SESSION_KEY) || '';
 let inboxes = [];
@@ -565,6 +591,34 @@ async function silentRefresh() {
       const sender = newArrivals[0].from_address;
       showToast(`📬 Email baru diterima dari: ${sender}`);
       document.title = `(${newArrivals.length}) Pesan Baru — ${appConfig.appName}`;
+
+      // Desktop notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          const firstMsg = newArrivals[0];
+          const otp = detectOtp(firstMsg.subject, firstMsg.snippet || '');
+          let notifTitle = `📬 Email Baru: ${firstMsg.from_address.split('<')[0].trim() || firstMsg.from_address}`;
+          let notifBody = firstMsg.subject || '(Tanpa Subjek)';
+          if (otp) {
+            notifTitle = `🔑 Kode OTP: ${otp}`;
+            notifBody = `Dari: ${firstMsg.from_address}\nSubjek: ${firstMsg.subject}`;
+          } else if (firstMsg.snippet) {
+            notifBody += `\n${firstMsg.snippet.slice(0, 90)}`;
+          }
+
+          const notif = new Notification(notifTitle, {
+            body: notifBody,
+            icon: 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%230b57d0\'%3E%3Cpath d=\'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z\'/%3E%3C/svg%3E',
+          });
+          notif.onclick = () => {
+            window.focus();
+            openReadingView(firstMsg);
+            notif.close();
+          };
+        } catch (e) {
+          console.debug('Failed to show desktop notification:', e);
+        }
+      }
     }
   } catch (e) {
     console.debug('Background sync check failed:', e);
@@ -1021,13 +1075,134 @@ menuToggleBtn.addEventListener('click', () => {
 
 sidebarBackdrop.addEventListener('click', closeMobileSidebar);
 
+// ---- Desktop Notifications ----
+
+function updateNotificationUI() {
+  if (!('Notification' in window) || !notificationToggleBtn) {
+    if (notificationToggleBtn) notificationToggleBtn.style.display = 'none';
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    notificationIconOff.classList.add('hidden');
+    notificationIconOn.classList.remove('hidden');
+    notificationToggleBtn.classList.add('active');
+    notificationToggleBtn.title = 'Notifikasi Desktop Aktif';
+  } else {
+    notificationIconOff.classList.remove('hidden');
+    notificationIconOn.classList.add('hidden');
+    notificationToggleBtn.classList.remove('active');
+    notificationToggleBtn.title = 'Aktifkan Notifikasi Desktop';
+  }
+}
+
+if (notificationToggleBtn) {
+  notificationToggleBtn.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      showToast('❌ Browser Anda tidak mendukung notifikasi desktop');
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      showToast('🔔 Notifikasi desktop sudah aktif');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      showToast('⚠️ Izin notifikasi diblokir di setelan browser Anda');
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    updateNotificationUI();
+    if (perm === 'granted') {
+      showToast('🔔 Notifikasi desktop berhasil diaktifkan!');
+      try {
+        new Notification('Tempik Mail', {
+          body: 'Notifikasi email baru dan kode OTP telah aktif!',
+          icon: 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%230b57d0\'%3E%3Cpath d=\'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z\'/%3E%3C/svg%3E',
+        });
+      } catch {}
+    }
+  });
+}
+
+// ---- Session Recovery & Sync Handlers ----
+
+if (sessionSyncBtn) {
+  sessionSyncBtn.addEventListener('click', () => {
+    currentSessionKeyText.textContent = sessionId || 'Memuat...';
+    restoreSessionKeyInput.value = '';
+    syncModalOverlay.classList.remove('hidden');
+  });
+}
+
+if (closeSyncBtn) {
+  closeSyncBtn.addEventListener('click', () => {
+    syncModalOverlay.classList.add('hidden');
+  });
+}
+
+if (cancelSyncBtn) {
+  cancelSyncBtn.addEventListener('click', () => {
+    syncModalOverlay.classList.add('hidden');
+  });
+}
+
+if (syncModalOverlay) {
+  syncModalOverlay.addEventListener('click', (e) => {
+    if (e.target === syncModalOverlay) {
+      syncModalOverlay.classList.add('hidden');
+    }
+  });
+}
+
+if (copySessionKeyBtn) {
+  copySessionKeyBtn.addEventListener('click', async () => {
+    if (!sessionId) return;
+    const ok = await copyTextToClipboard(sessionId);
+    if (ok) showToast('📋 Kunci sesi disalin ke clipboard!');
+  });
+}
+
+if (copySyncLinkBtn) {
+  copySyncLinkBtn.addEventListener('click', async () => {
+    if (!sessionId) return;
+    const syncUrl = `${window.location.origin}${window.location.pathname}?session=${encodeURIComponent(sessionId)}`;
+    const ok = await copyTextToClipboard(syncUrl);
+    if (ok) showToast('🔗 Tautan sinkronisasi disalin! Buka link ini di perangkat lain.');
+  });
+}
+
+if (applyRestoreSessionBtn) {
+  applyRestoreSessionBtn.addEventListener('click', async () => {
+    const inputKey = restoreSessionKeyInput.value.trim();
+    if (!inputKey) {
+      showToast('⚠️ Masukkan kunci sesi terlebih dahulu');
+      return;
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inputKey)) {
+      showToast('❌ Format kunci sesi tidak valid (harus UUID)');
+      return;
+    }
+
+    sessionId = inputKey;
+    localStorage.setItem(SESSION_KEY, sessionId);
+    syncModalOverlay.classList.add('hidden');
+    showToast('✨ Sesi berhasil dipulihkan! Memuat email Anda...', 2500);
+    currentAddress = '';
+    localStorage.removeItem(ACTIVE_ADDR_KEY);
+    await loadInboxes();
+  });
+}
+
 // ---- App Initialization ----
 
 async function init() {
   initTheme();
+  updateNotificationUI();
   try {
     await loadConfig();
     await ensureSession();
+    if (restoredFromUrl) {
+      showToast('✨ Sesi berhasil dipulihkan dari tautan!', 3000);
+    }
     await loadInboxes();
 
     // Start background polling every 6 seconds
