@@ -22,6 +22,12 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    // Enforce HTTPS redirect
+    if (url.protocol === 'http:' && !url.hostname.includes('localhost') && !url.hostname.includes('127.0.0.1')) {
+      url.protocol = 'https:';
+      return Response.redirect(url.toString(), 301);
+    }
+
     // Route /api/* to Hono router (strip /api prefix)
     if (url.pathname.startsWith('/api/')) {
       const apiUrl = new URL(request.url);
