@@ -316,12 +316,10 @@ function renderSafeBody(container, rawBody) {
 
 // Detect OTP / 4-8 digit verification code
 function detectOtp(subject, body) {
-  const full = `${subject} ${body}`;
+  const full = `${subject || ''} ${body || ''}`;
   const patterns = [
     /(?:code|otp|kode|verifikasi|verification|pin)[^\w\d]{0,15}(?:G-)?(\d{4,8})\b/i,
     /\b(G-\d{6})\b/i,
-    /\b(\d{6})\b/,
-    /\b(\d{4})\b/,
   ];
   for (const regex of patterns) {
     const match = full.match(regex);
@@ -519,28 +517,37 @@ async function loadMessages() {
 
 // Background silent polling
 async function silentRefresh() {
+  if (document.visibilityState !== 'visible') return;
   if (!currentAddress || isSyncing) return;
   setSyncingState(true);
 
   try {
     const latestMessages = await fetchJson(`/api/inboxes/${encodeURIComponent(currentAddress)}/messages`);
     
-    // Check if there are new messages
-    const currentIds = new Set(messages.map((m) => m.id));
-    const newArrivals = latestMessages.filter((m) => !currentIds.has(m.id));
+    // Check if message ID list is identical (avoid unnecessary DOM rebuilds)
+    const oldIds = messages.map((m) => m.id);
+    const newIds = latestMessages.map((m) => m.id);
+    const isSame =
+      oldIds.length === newIds.length &&
+      oldIds.every((id, idx) => id === newIds[idx]);
+
+    if (isSame) {
+      return;
+    }
+
+    const currentIdSet = new Set(oldIds);
+    const newArrivals = latestMessages.filter((m) => !currentIdSet.has(m.id));
+
+    messages = latestMessages;
+    renderMessages();
 
     if (newArrivals.length > 0) {
-      messages = latestMessages;
-      renderMessages();
       playChime();
 
       // Show toast and browser title notification
       const sender = newArrivals[0].from_address;
       showToast(`📬 Email baru diterima dari: ${sender}`);
       document.title = `(${newArrivals.length}) Pesan Baru — ${appConfig.appName}`;
-    } else {
-      messages = latestMessages;
-      renderMessages();
     }
   } catch (e) {
     console.debug('Background sync check failed:', e);
@@ -579,6 +586,7 @@ function renderMessages() {
       (m) =>
         m.subject.toLowerCase().includes(q) ||
         m.from_address.toLowerCase().includes(q) ||
+        (m.snippet && m.snippet.toLowerCase().includes(q)) ||
         (m.body && m.body.toLowerCase().includes(q))
     );
     currentViewTitle.textContent = `Pencarian: "${searchQuery}"`;
@@ -635,7 +643,9 @@ function renderMessages() {
     const initials = getSenderInitials(msg.from_address);
     const avatarBg = getAvatarBgColor(msg.from_address);
     const timeDisplay = formatRelativeTime(msg.received_at);
-    const snippetText = msg.body ? msg.body.replace(/<[^>]*>?/gm, '').slice(0, 100) : '';
+    const snippetText = (msg.snippet || msg.body || '')
+      .replace(/<[^>]*>?/gm, '')
+      .slice(0, 100);
 
     const row = document.createElement('div');
     row.className = `mail-row ${isUnread ? 'unread' : 'read'}`;
@@ -732,8 +742,8 @@ async function deleteSingleMessage(msgId) {
   }
 }
 
-// Open reading view
-function openReadingView(msg) {
+// Open reading view (fetches full message body on demand)
+async function openReadingView(msg) {
   activeMessage = msg;
   readIds.add(msg.id);
   saveRead();
@@ -751,23 +761,42 @@ function openReadingView(msg) {
   readingRecipient.textContent = `saya <${currentAddress}>`;
   readingDateTime.textContent = formatFullTime(msg.received_at);
 
-  // Safe body content rendered inside sandboxed iframe
-  renderSafeBody(readingBodyContent, msg.body);
-
-  // OTP Detection
-  const otp = detectOtp(msg.subject, msg.body);
-  if (otp) {
-    detectedOtpCode.textContent = otp;
-    otpBanner.classList.remove('hidden');
-  } else {
-    otpBanner.classList.add('hidden');
-  }
+  // Initial loading state
+  otpBanner.classList.add('hidden');
+  readingBodyContent.innerHTML = '<p style="color:var(--text-tertiary, #888);padding:16px 0;font-style:italic;">Memuat isi pesan...</p>';
 
   updateReadingStarIcon();
 
   // Switch views
   emailListView.classList.add('hidden');
   emailReadingView.classList.remove('hidden');
+
+  const viewingId = msg.id;
+  try {
+    const fullMsg = await fetchJson(
+      `/api/inboxes/${encodeURIComponent(currentAddress)}/messages/${encodeURIComponent(viewingId)}`
+    );
+
+    // Make sure user hasn't navigated away from this message
+    if (activeMessage && activeMessage.id === viewingId) {
+      msg.body = fullMsg.body || '';
+      renderSafeBody(readingBodyContent, msg.body);
+
+      // OTP Detection on full message body
+      const otp = detectOtp(msg.subject, msg.body);
+      if (otp) {
+        detectedOtpCode.textContent = otp;
+        otpBanner.classList.remove('hidden');
+      } else {
+        otpBanner.classList.add('hidden');
+      }
+    }
+  } catch (err) {
+    if (activeMessage && activeMessage.id === viewingId) {
+      console.error('Failed to load full message body:', err);
+      readingBodyContent.innerHTML = `<p style="color:#d93025;padding:16px 0;">Gagal memuat isi pesan: ${escapeHtml(err.message)}</p>`;
+    }
+  }
 }
 
 function updateReadingStarIcon() {

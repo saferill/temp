@@ -232,7 +232,7 @@ curl -s -X DELETE "https://YOUR_DOMAIN/api/inboxes/test123%40example.com" \
 
 ### GET `/api/inboxes/:address/messages`
 
-Fetches all messages for a given inbox. The inbox must be linked to your session.
+Fetches lightweight message summaries for a given inbox (without full body HTML for optimal polling bandwidth). Ordered deterministically by `received_at DESC, id DESC`. The inbox must be linked to your session.
 
 **Headers**
 
@@ -255,7 +255,7 @@ Fetches all messages for a given inbox. The inbox must be linked to your session
     "inbox_address": "test123@example.com",
     "from_address": "someone@gmail.com",
     "subject": "Hello",
-    "body": "This is the email body",
+    "snippet": "This is a preview snippet of the email...",
     "received_at": "2026-06-26 08:10:14"
   }
 ]
@@ -266,7 +266,7 @@ Fetches all messages for a given inbox. The inbox must be linked to your session
 | Status | Message | Meaning |
 |---|---|---|
 | `400` | `Missing x-session-id` | No session header |
-| `403` | `Inbox not in this session` | The inbox exists but is not linked to your session. Use `POST /api/inboxes` with the matching `localPart` to claim it first. |
+| `403` | `Inbox not in this session` | The inbox does not belong to your session |
 
 **Usage**
 
@@ -277,11 +277,59 @@ curl -s "https://YOUR_DOMAIN/api/inboxes/test123%40example.com/messages" \
 
 ---
 
+### GET `/api/inboxes/:address/messages/:id`
+
+Fetches the complete message details including the full HTML/plain-text `body`. The inbox must be linked to your session.
+
+**Headers**
+
+| Header | Required | Description |
+|---|---|---|
+| `x-session-id` | **Yes** | Session ID |
+
+**Path Parameters**
+
+| Param | Description |
+|---|---|
+| `address` | Full email address, URI-encoded. |
+| `id` | ID of the message to retrieve. |
+
+**Response** `200 OK`
+
+```json
+{
+  "id": "msg_1782461413912_0956a83c",
+  "inbox_address": "test123@example.com",
+  "from_address": "someone@gmail.com",
+  "subject": "Hello",
+  "body": "<html><body><h1>Hello World</h1><p>Full email content</p></body></html>",
+  "received_at": "2026-06-26 08:10:14"
+}
+```
+
+**Errors**
+
+| Status | Message | Meaning |
+|---|---|---|
+| `400` | `Missing x-session-id` | No session header |
+| `403` | `Inbox not in this session` | The inbox does not belong to your session |
+| `404` | `Message not found` | The message ID was not found for this inbox |
+
+**Usage**
+
+```bash
+curl -s "https://YOUR_DOMAIN/api/inboxes/test123%40example.com/messages/msg_1782461413912_0956a83c" \
+  -H "x-session-id: 550e8400-e29b-41d4-a716-446655440000"
+```
+
+---
+
 ### DELETE `/api/inboxes/:address/messages/:id`
 
 Deletes a single message from an inbox. The inbox must be linked to your session.
 
 **Headers**
+
 
 | Header | Required | Description |
 |---|---|---|

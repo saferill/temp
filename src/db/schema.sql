@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS messages (
   FOREIGN KEY (inbox_address) REFERENCES inboxes(address) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_messages_inbox ON messages(inbox_address);
 CREATE INDEX IF NOT EXISTS idx_messages_received ON messages(inbox_address, received_at DESC);
 
 CREATE TABLE IF NOT EXISTS sessions (

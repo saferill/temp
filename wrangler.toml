@@ -11,7 +11,7 @@ workers_dev = false
 [[d1_databases]]
 binding = "DB"
 database_name = "tempik-db"
-database_id = "54dcd7a9-0ea0-4bfd-af0d-4b91a39c95ad"
+database_id = "GANTI_DENGAN_DATABASE_ID_ANDA"
 
 
 # ---- Custom domain routes ----

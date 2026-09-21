@@ -14,6 +14,15 @@ export interface Message {
   received_at: string;
 }
 
+export interface MessageSummary {
+  id: string;
+  inbox_address: string;
+  from_address: string;
+  subject: string;
+  snippet: string;
+  received_at: string;
+}
+
 export interface Session {
   id: string;
   created_at: string;
@@ -49,14 +58,28 @@ export async function getSessionInboxes(db: D1Database, sessionId: string): Prom
 
 // ---- Messages ----
 
-export async function getMessages(db: D1Database, inboxAddress: string): Promise<Message[]> {
+export async function getMessages(db: D1Database, inboxAddress: string): Promise<MessageSummary[]> {
   return db
     .prepare(
-      'SELECT * FROM messages WHERE inbox_address = ? ORDER BY received_at DESC'
+      `SELECT id, inbox_address, from_address, subject, received_at, substr(body, 1, 150) AS snippet
+       FROM messages
+       WHERE inbox_address = ?
+       ORDER BY received_at DESC, id DESC`
     )
     .bind(inboxAddress)
-    .all<Message>()
+    .all<MessageSummary>()
     .then((r) => r.results);
+}
+
+export async function getMessage(
+  db: D1Database,
+  inboxAddress: string,
+  messageId: string
+): Promise<Message | null> {
+  return db
+    .prepare('SELECT * FROM messages WHERE id = ? AND inbox_address = ? LIMIT 1')
+    .bind(messageId, inboxAddress)
+    .first<Message>();
 }
 
 export async function insertMessage(
@@ -87,11 +110,6 @@ export async function deleteMessage(
 
 export async function ensureSession(db: D1Database, sessionId: string): Promise<void> {
   await db.prepare('INSERT OR IGNORE INTO sessions (id) VALUES (?)').bind(sessionId).run();
-}
-
-export async function sessionExists(db: D1Database, sessionId: string): Promise<boolean> {
-  const row = await db.prepare('SELECT 1 FROM sessions WHERE id = ? LIMIT 1').bind(sessionId).first();
-  return !!row;
 }
 
 // ---- Session-Inbox links ----

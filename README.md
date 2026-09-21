@@ -111,7 +111,7 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
 ### 4. Sesuaikan `wrangler.toml`
 
-Buka file `wrangler.toml` dan pastikan konfigurasi sesuai dengan domain dan ID database Anda:
+Buka file `wrangler.toml` dan ganti nilai `database_id` yang bernilai placeholder `"GANTI_DENGAN_DATABASE_ID_ANDA"` dengan ID database asli yang Anda dapatkan dari langkah 3:
 
 ```toml
 name = "tempik"
@@ -123,7 +123,7 @@ workers_dev = false
 [[d1_databases]]
 binding = "DB"
 database_name = "tempik-db"
-database_id = "MASUKKAN_DATABASE_ID_ANDA_DI_SINI"
+database_id = "GANTI_DENGAN_DATABASE_ID_ANDA" # <-- Ganti dengan database_id hasil output langkah 3
 
 [[routes]]
 pattern = "tempik.cinewatch.web.id"
@@ -139,9 +139,14 @@ directory = "./src/web"
 
 [observability]
 enabled = true
+
+[triggers]
+crons = ["0 * * * *"]
 ```
 
-> **Catatan**: Ganti `cinewatch.web.id` dengan nama domain Anda sendiri jika menggunakan domain lain.
+> **Catatan**: 
+> 1. Pastikan nilai `database_id` sudah diganti dari `"GANTI_DENGAN_DATABASE_ID_ANDA"` ke UUID database Anda sebelum melakukan deployment.
+> 2. Ganti `cinewatch.web.id` dengan nama domain Anda sendiri jika menggunakan domain lain.
 
 ### 5. Terapkan Skema Database (*Migration*)
 

@@ -6,9 +6,9 @@ import {
   inboxExists,
   getSessionInboxes,
   getMessages,
+  getMessage,
   ensureSession,
   linkInboxToSession,
-  unlinkInboxFromSession,
   isInboxInSession,
   inboxHasOwner,
   deleteInboxCompletely,
@@ -39,6 +39,10 @@ export interface ApiEnv {
   WEB_HOST: string;
 }
 
+export type ApiVariables = {
+  sessionId: string;
+};
+
 function getDomains(env: ApiEnv): string[] {
   return env.MAIL_DOMAIN.split(',').map(d => d.trim()).filter(Boolean);
 }
@@ -47,20 +51,20 @@ function defaultDomain(env: ApiEnv): string {
   return getDomains(env)[0] || 'example.com';
 }
 
-function sessionId(c: any): string | null {
-  return (c.req.header('x-session-id') || '').trim() || null;
-}
+const api = new Hono<{ Bindings: ApiEnv; Variables: ApiVariables }>();
 
-function requireSession(c: any): string {
-  const sid = sessionId(c);
+// Middleware: Require x-session-id for all /inboxes routes
+const requireSession = async (c: any, next: () => Promise<void>) => {
+  const sid = (c.req.header('x-session-id') || '').trim();
   if (!sid) {
-    c.status(400);
-    return '';
+    return c.json({ error: 'Missing x-session-id' }, 400);
   }
-  return sid;
-}
+  c.set('sessionId', sid);
+  await next();
+};
 
-const api = new Hono<{ Bindings: ApiEnv }>();
+api.use('/inboxes', requireSession);
+api.use('/inboxes/*', requireSession);
 
 // ---- GET /api/config ----
 api.get('/config', (c) => {
@@ -75,7 +79,7 @@ api.get('/config', (c) => {
 
 // ---- GET /api/session ----
 api.get('/session', async (c) => {
-  let sid = sessionId(c);
+  let sid = (c.req.header('x-session-id') || '').trim() || null;
   if (!sid) {
     sid = crypto.randomUUID();
   }
@@ -85,18 +89,14 @@ api.get('/session', async (c) => {
 
 // ---- GET /api/inboxes ----
 api.get('/inboxes', async (c) => {
-  const sid = requireSession(c);
-  if (!sid) return c.json({ error: 'Missing x-session-id' }, 400);
-
+  const sid = c.get('sessionId');
   const inboxes = await getSessionInboxes(c.env.DB, sid);
   return c.json(inboxes);
 });
 
 // ---- POST /api/inboxes ----
 api.post('/inboxes', async (c) => {
-  const sid = requireSession(c);
-  if (!sid) return c.json({ error: 'Missing x-session-id' }, 400);
-
+  const sid = c.get('sessionId');
   const body = await c.req.json().catch(() => ({}));
   const domains = getDomains(c.env);
   const requestedDomain: string = (body.domain || '').trim().toLowerCase();
@@ -166,9 +166,7 @@ api.post('/inboxes', async (c) => {
 
 // ---- DELETE /api/inboxes/:address ----
 api.delete('/inboxes/:address', async (c) => {
-  const sid = requireSession(c);
-  if (!sid) return c.json({ error: 'Missing x-session-id' }, 400);
-
+  const sid = c.get('sessionId');
   const address = decodeURIComponent(c.req.param('address'));
 
   // Ensure the inbox belongs to this session before allowing deletion
@@ -182,9 +180,7 @@ api.delete('/inboxes/:address', async (c) => {
 
 // ---- GET /api/inboxes/:address/messages ----
 api.get('/inboxes/:address/messages', async (c) => {
-  const sid = requireSession(c);
-  if (!sid) return c.json({ error: 'Missing x-session-id' }, 400);
-
+  const sid = c.get('sessionId');
   const address = decodeURIComponent(c.req.param('address'));
 
   // Must have inbox in session to read messages
@@ -196,11 +192,28 @@ api.get('/inboxes/:address/messages', async (c) => {
   return c.json(messages);
 });
 
+// ---- GET /api/inboxes/:address/messages/:id ----
+api.get('/inboxes/:address/messages/:id', async (c) => {
+  const sid = c.get('sessionId');
+  const address = decodeURIComponent(c.req.param('address'));
+  const id = c.req.param('id');
+
+  // Must have inbox in session to read message details
+  if (!(await isInboxInSession(c.env.DB, sid, address))) {
+    return c.json({ error: 'Inbox not in this session' }, 403);
+  }
+
+  const message = await getMessage(c.env.DB, address, id);
+  if (!message) {
+    return c.json({ error: 'Message not found' }, 404);
+  }
+
+  return c.json(message);
+});
+
 // ---- DELETE /api/inboxes/:address/messages/:id ----
 api.delete('/inboxes/:address/messages/:id', async (c) => {
-  const sid = requireSession(c);
-  if (!sid) return c.json({ error: 'Missing x-session-id' }, 400);
-
+  const sid = c.get('sessionId');
   const address = decodeURIComponent(c.req.param('address'));
   const id = c.req.param('id');
 
@@ -214,3 +227,4 @@ api.delete('/inboxes/:address/messages/:id', async (c) => {
 });
 
 export default api;
+
