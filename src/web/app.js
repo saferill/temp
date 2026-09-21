@@ -109,9 +109,12 @@ function saveRead() {
 
 function escapeHtml(str) {
   if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function getSenderInitials(fromStr) {
@@ -244,28 +247,71 @@ async function copyTextToClipboard(text) {
   }
 }
 
-// Safe formatting for body with automatic link detection
-function renderSafeBody(rawBody) {
-  if (!rawBody) return '<p class="text-tertiary">(Isi pesan kosong)</p>';
-  
-  // Detect if body is raw HTML
+// Safe formatting for body with sandboxed iframe and automatic link detection
+function renderSafeBody(container, rawBody) {
+  container.innerHTML = '';
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
+  iframe.style.width = '100%';
+  iframe.style.border = 'none';
+  iframe.style.background = 'transparent';
+  iframe.style.display = 'block';
+  iframe.style.minHeight = '150px';
+
+  let contentHtml = '';
   const isHtml = /<[a-z][\s\S]*>/i.test(rawBody);
 
-  if (isHtml) {
-    // Basic sanitize: strip script tags & iframes
-    const clean = rawBody
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
-    return clean;
+  if (!rawBody) {
+    contentHtml = '<p style="color:var(--text-tertiary, #888);font-style:italic;">(Isi pesan kosong)</p>';
+  } else if (isHtml) {
+    contentHtml = rawBody;
+  } else {
+    // Plain text: escape HTML and convert newlines & URLs to links
+    const escaped = escapeHtml(rawBody);
+    const withLinks = escaped.replace(
+      /(https?:\/\/[^\s<]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+    contentHtml = withLinks.replace(/\n/g, '<br/>');
   }
 
-  // Plain text: escape HTML and convert newlines & URLs to links
-  const escaped = escapeHtml(rawBody);
-  const withLinks = escaped.replace(
-    /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
-  return withLinks.replace(/\n/g, '<br/>');
+  const isDark = document.body.classList.contains('theme-dark');
+  const textColor = isDark ? '#e2e2e6' : '#1f1f1f';
+
+  // Inject <base target="_blank"> to force all links to open in a new tab
+  let srcdoc = '';
+  if (isHtml && /<html[\s\S]*>/i.test(contentHtml)) {
+    if (/<head[\s\S]*>/i.test(contentHtml)) {
+      srcdoc = contentHtml.replace(/<head\b[^>]*>/i, '$&<base target="_blank">');
+    } else {
+      srcdoc = `<base target="_blank">${contentHtml}`;
+    }
+  } else {
+    srcdoc = `<!DOCTYPE html><html><head><base target="_blank"><style>body{margin:0;padding:2px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;line-height:1.6;color:${textColor};word-break:break-word;overflow-wrap:break-word;}img{max-width:100%;height:auto;}a{color:#0b57d0;}</style></head><body>${contentHtml}</body></html>`;
+  }
+
+  iframe.srcdoc = srcdoc;
+
+  iframe.onload = () => {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (doc) {
+        const links = doc.querySelectorAll('a');
+        links.forEach((a) => a.setAttribute('target', '_blank'));
+        if (doc.body) {
+          const height = Math.max(doc.body.scrollHeight, doc.documentElement?.scrollHeight || 0);
+          if (height && height > 0) {
+            iframe.style.height = `${height + 16}px`;
+          }
+        }
+      }
+    } catch (err) {
+      // Ignored if cross-origin sandbox restrictions prevent access
+    }
+  };
+
+  container.appendChild(iframe);
 }
 
 // Detect OTP / 4-8 digit verification code
@@ -411,10 +457,16 @@ function renderAddressList() {
     // Sidebar item
     const item = document.createElement('div');
     item.className = `sidebar-address-item ${inbox.address === currentAddress ? 'active' : ''}`;
-    item.innerHTML = `
-      <span class="address-dot"></span>
-      <span class="address-name" title="${inbox.address}">${inbox.address}</span>
-    `;
+    const dot = document.createElement('span');
+    dot.className = 'address-dot';
+
+    const name = document.createElement('span');
+    name.className = 'address-name';
+    name.title = inbox.address;
+    name.textContent = inbox.address;
+
+    item.appendChild(dot);
+    item.appendChild(name);
     item.addEventListener('click', () => switchAddress(inbox.address));
     sidebarAddressList.appendChild(item);
 
@@ -699,8 +751,8 @@ function openReadingView(msg) {
   readingRecipient.textContent = `saya <${currentAddress}>`;
   readingDateTime.textContent = formatFullTime(msg.received_at);
 
-  // Safe body content
-  readingBodyContent.innerHTML = renderSafeBody(msg.body);
+  // Safe body content rendered inside sandboxed iframe
+  renderSafeBody(readingBodyContent, msg.body);
 
   // OTP Detection
   const otp = detectOtp(msg.subject, msg.body);

@@ -10,10 +10,27 @@ import {
   linkInboxToSession,
   unlinkInboxFromSession,
   isInboxInSession,
+  inboxHasOwner,
   deleteInboxCompletely,
   deleteMessage,
 } from '../db/queries';
 import { generateUniqueAddress } from '../utils/random-address';
+
+const BLACKLISTED_LOCAL_PARTS = new Set([
+  'admin',
+  'administrator',
+  'postmaster',
+  'abuse',
+  'support',
+  'noreply',
+  'no-reply',
+  'root',
+  'webmaster',
+  'hostmaster',
+  'security',
+]);
+
+const LOCAL_PART_REGEX = /^[a-z0-9][a-z0-9._-]{2,30}$/;
 
 export interface ApiEnv {
   DB: D1Database;
@@ -96,7 +113,25 @@ api.post('/inboxes', async (c) => {
 
   let address: string;
   if (requested) {
+    if (!LOCAL_PART_REGEX.test(requested)) {
+      return c.json(
+        { error: 'Nama pengguna hanya boleh huruf kecil, angka, titik, minus, underscore (3-31 karakter).' },
+        400
+      );
+    }
+
+    if (BLACKLISTED_LOCAL_PARTS.has(requested)) {
+      return c.json({ error: 'Nama pengguna ini tidak diizinkan.' }, 400);
+    }
+
     address = `${requested}@${domain}`;
+
+    if ((await inboxHasOwner(c.env.DB, address)) && !(await isInboxInSession(c.env.DB, sid, address))) {
+      return c.json(
+        { error: 'Alamat ini sudah dipakai orang lain, silakan pilih nama lain.' },
+        409
+      );
+    }
   } else {
     address = await generateUniqueAddress(
       (addr) => inboxExists(c.env.DB, addr),

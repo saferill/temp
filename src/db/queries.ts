@@ -132,6 +132,17 @@ export async function isInboxInSession(
   return !!row;
 }
 
+export async function inboxHasOwner(
+  db: D1Database,
+  address: string
+): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT 1 FROM session_inboxes WHERE inbox_address = ? LIMIT 1')
+    .bind(address)
+    .first();
+  return !!row;
+}
+
 export async function deleteInboxCompletely(
   db: D1Database,
   address: string
