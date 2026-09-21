@@ -209,6 +209,41 @@ function showToast(text, duration = 3000) {
   }, duration);
 }
 
+// Universal Clipboard Copy with Fallback for non-HTTPS / HTTP contexts
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+
+  // 1. Try Modern Clipboard API if available and in secure context
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      console.warn('navigator.clipboard writeText failed, using fallback:', e);
+    }
+  }
+
+  // 2. Reliable execCommand fallback for HTTP & non-secure contexts
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '-9999px';
+    textArea.style.left = '-9999px';
+    textArea.style.opacity = '0';
+    textArea.setAttribute('readonly', '');
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (err) {
+    console.error('execCommand copy failed:', err);
+    return false;
+  }
+}
+
 // Safe formatting for body with automatic link detection
 function renderSafeBody(rawBody) {
   if (!rawBody) return '<p class="text-tertiary">(Isi pesan kosong)</p>';
@@ -718,8 +753,12 @@ readingDeleteBtn.addEventListener('click', async () => {
 copyOtpBtn.addEventListener('click', async () => {
   const code = detectedOtpCode.textContent;
   if (!code) return;
-  await navigator.clipboard.writeText(code);
-  showToast(`📋 Kode OTP disalin: ${code}`);
+  const ok = await copyTextToClipboard(code);
+  if (ok) {
+    showToast(`📋 Kode OTP disalin: ${code}`);
+  } else {
+    showToast(`📋 Kode OTP: ${code}`);
+  }
 });
 
 // Navigation Folders (Inbox vs Starred)
@@ -760,18 +799,24 @@ navDeleteCurrentInboxBtn.addEventListener('click', async () => {
   }
 });
 
-// Quick Copy Address Chip
-copyAddressChip.addEventListener('click', async () => {
+// Quick Copy Active Address
+async function handleCopyCurrentAddress() {
   if (!currentAddress) return;
-  await navigator.clipboard.writeText(currentAddress);
-  showToast(`📋 Alamat disalin: ${currentAddress}`);
-});
+  const ok = await copyTextToClipboard(currentAddress);
+  if (ok) {
+    showToast(`📋 Alamat disalin: ${currentAddress}`);
+    quickCopyBtn.classList.add('copied');
+    setTimeout(() => quickCopyBtn.classList.remove('copied'), 1500);
+  } else {
+    showToast(`📋 Alamat: ${currentAddress}`);
+  }
+}
 
-quickCopyBtn.addEventListener('click', async (e) => {
+copyAddressChip.addEventListener('click', handleCopyCurrentAddress);
+
+quickCopyBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  if (!currentAddress) return;
-  await navigator.clipboard.writeText(currentAddress);
-  showToast(`📋 Alamat disalin: ${currentAddress}`);
+  handleCopyCurrentAddress();
 });
 
 // Refresh Button
@@ -862,10 +907,16 @@ function closeMobileSidebar() {
 }
 
 menuToggleBtn.addEventListener('click', () => {
-  if (gmailSidebar.classList.contains('open')) {
-    closeMobileSidebar();
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    if (gmailSidebar.classList.contains('open')) {
+      closeMobileSidebar();
+    } else {
+      openMobileSidebar();
+    }
   } else {
-    openMobileSidebar();
+    // Desktop: collapse / expand sidebar toggle
+    gmailSidebar.classList.toggle('collapsed');
   }
 });
 
