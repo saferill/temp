@@ -13,9 +13,6 @@ binding = "DB"
 database_name = "tempik-db"
 database_id = "54dcd7a9-0ea0-4bfd-af0d-4b91a39c95ad"
 
-# ---- Email Worker ----
-[email]
-action = "process"
 
 # ---- Custom domain routes ----
 # CHANGE THIS to your own domain (e.g. tempik.example.com)

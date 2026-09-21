@@ -237,7 +237,8 @@ function renderSafeBody(rawBody) {
 function detectOtp(subject, body) {
   const full = `${subject} ${body}`;
   const patterns = [
-    /(?:code|otp|kode|verifikasi|verification|pin)[^\d]{0,15}(\d{4,8})\b/i,
+    /(?:code|otp|kode|verifikasi|verification|pin)[^\w\d]{0,15}(?:G-)?(\d{4,8})\b/i,
+    /\b(G-\d{6})\b/i,
     /\b(\d{6})\b/,
     /\b(\d{4})\b/,
   ];

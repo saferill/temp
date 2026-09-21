@@ -18,13 +18,13 @@ export async function handleEmail(message: ForwardableEmailMessage, env: EmailHa
   console.log(`[email] Received from=${from} to=${to}`);
 
   try {
-    // Read raw email stream
-    const rawStream = message.raw;
+    // Read raw email buffer via native Response API
+    const rawBuffer = await new Response(message.raw).arrayBuffer();
     const parser = new PostalMime();
-    const parsed = await parser.parse(rawStream);
+    const parsed = await parser.parse(rawBuffer);
 
     const subject = parsed.subject || '(no subject)';
-    const body = parsed.text?.trim() || parsed.html || '';
+    const body = parsed.html || parsed.text?.trim() || '';
 
     const db = env.DB;
 
