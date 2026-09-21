@@ -33,3 +33,7 @@ directory = "./src/web"
 # ---- Observability ----
 [observability]
 enabled = true
+
+# ---- Cron Triggers (Auto-purge old emails hourly) ----
+[triggers]
+crons = ["0 * * * *"]

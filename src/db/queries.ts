@@ -154,3 +154,14 @@ export async function deleteInboxCompletely(
   ]);
 }
 
+export async function purgeOldMessages(db: D1Database): Promise<void> {
+  await db.batch([
+    db.prepare("DELETE FROM messages WHERE received_at < datetime('now', '-24 hours')"),
+    db.prepare(
+      `DELETE FROM inboxes
+       WHERE address NOT IN (SELECT inbox_address FROM session_inboxes)
+         AND address NOT IN (SELECT inbox_address FROM messages)`
+    ),
+  ]);
+}
+

@@ -111,6 +111,21 @@ api.post('/inboxes', async (c) => {
 
   const requested: string = (body.localPart || '').trim().toLowerCase();
 
+  // Rate limit: max 10 inboxes per session
+  const currentInboxes = await getSessionInboxes(c.env.DB, sid);
+  if (currentInboxes.length >= 10) {
+    const alreadyInSession = requested
+      ? currentInboxes.some((i) => i.address === `${requested}@${domain}`)
+      : false;
+
+    if (!alreadyInSession) {
+      return c.json(
+        { error: 'Batas 10 alamat per sesi tercapai. Hapus salah satu alamat dulu.' },
+        429
+      );
+    }
+  }
+
   let address: string;
   if (requested) {
     if (!LOCAL_PART_REGEX.test(requested)) {

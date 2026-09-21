@@ -16,8 +16,9 @@ Tidak memerlukan VPS, tanpa server Linux, tanpa konfigurasi Docker, dan tanpa pu
 - 🔄 **Sinkronisasi Real-Time & Sound Chime**: Polling latar belakang otomatis setiap 6 detik disertai notifikasi suara merdu (*web audio chime*) saat email baru masuk.
 - 🌓 **Mode Gelap & Terang (Dark/Light)**: Dukungan tema gelap dan terang yang nyaman di mata dengan penyimpanan preferensi otomatis.
 - 🔒 **Privasi Berbasis Sesi Anonim**: Sesi pengguna terisolasi di browser via `localStorage` tanpa perlu mendaftar akun atau login.
+- ⏱️ **Auto-Hapus 24 Jam (*Retention Policy*)**: Email otomatis dihapus setelah 24 jam via Cloudflare Cron Triggers per jam, menjaga database D1 selalu bersih dan hemat kuota storage.
 - 🗑️ **Pembersihan Permanen (*Cascade Delete*)**: Hapus pesan individual atau hapus seluruh alamat inbox beserta riwayat emailnya secara permanen dari database.
-- 🛡️ **Sanitasi XSS & Rich HTML**: Menampilkan email HTML dengan aman dan otomatis mengubah tautan/URL menjadi tautan aktif yang dapat diklik.
+- 🛡️ **Sanitasi XSS & Rich HTML**: Menampilkan email HTML dengan aman di dalam sandboxed iframe dan otomatis mengubah tautan/URL menjadi tautan aktif yang dapat diklik.
 
 ---
 
